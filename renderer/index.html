@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PDF Reader with Dictionary</title>
+    <style>
+      #pdfContainer {
+        width: 100%;
+        height: 80vh;
+        overflow: auto;
+        border: 1px solid #ccc;
+      }
+      canvas {
+        display: block;
+        margin: 0 auto;
+        border: 1px solid #888;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="uploadBtn">Upload PDF</button>
+    <div style="display: flex; height: 90vh">
+      <div
+        id="pdfContainer"
+        style="flex: 2; overflow: auto; border: 1px solid #ccc"
+      ></div>
+      <div
+        id="wordList"
+        style="flex: 1; overflow: auto; border: 1px solid #888; padding: 10px"
+      ></div>
+    </div>
+
+    <script src="../node_modules/pdfjs-dist/build/pdf.min.js"></script>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
