@@ -1,5 +1,6 @@
 const pdfjsLib = window.pdfjsLib;
-pdfjsLib.GlobalWorkerOptions.workerSrc = '../node_modules/pdfjs-dist/build/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "../node_modules/pdfjs-dist/build/pdf.worker.min.js";
 
 const uploadBtn = document.getElementById("uploadBtn");
 const pdfContainer = document.getElementById("pdfContainer");
@@ -17,23 +18,48 @@ wordPopup.style.fontSize = "14px";
 wordPopup.style.zIndex = 9999;
 document.body.appendChild(wordPopup);
 
+// Stop words to ignore
+const stopWords = new Set([
+  "a",
+  "an",
+  "the",
+  "in",
+  "on",
+  "at",
+  "of",
+  "for",
+  "to",
+  "and",
+  "or",
+  "but",
+  "is",
+  "are",
+  "was",
+  "were",
+  "with",
+  "by",
+  "from",
+  "as",
+]);
+
+let wordsByPage = {}; // store words per page
+
 uploadBtn.addEventListener("click", async () => {
   const fileBuffer = await window.electronAPI.openFile();
   if (!fileBuffer) return;
 
   pdfContainer.innerHTML = "";
   wordList.innerHTML = "";
+  wordsByPage = {};
 
   const loadingTask = pdfjsLib.getDocument({ data: fileBuffer });
   const pdf = await loadingTask.promise;
-
-  const allWords = new Set(); // store unique words
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: 1.5 });
 
-    // Render page on canvas
+    // Render PDF page
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     canvas.width = viewport.width;
@@ -41,37 +67,84 @@ uploadBtn.addEventListener("click", async () => {
     pdfContainer.appendChild(canvas);
     await page.render({ canvasContext: context, viewport }).promise;
 
-    // Extract text
+    // Extract text and map to page
     const textContent = await page.getTextContent();
-    textContent.items.forEach(item => {
-      const word = item.str.trim();
-      if (word && !allWords.has(word)) {
-        allWords.add(word);
+    textContent.items.forEach((item) => {
+      const words = item.str
+        .trim()
+        .split(/\s+/)
+        .map((w) => w.replace(/[.,!?;:()"'-]/g, "").toLowerCase())
+        .filter((w) => w.length > 2 && !stopWords.has(w));
 
-        // Add to the word list panel
-        const wordDiv = document.createElement("div");
-        wordDiv.textContent = word;
-        wordDiv.style.cursor = "pointer";
-        wordDiv.style.padding = "2px 4px";
-
-        // Click → show popup
-        wordDiv.addEventListener("click", async (e) => {
-          const results = await window.electronAPI.lookup(word.toLowerCase());
-          if (results.length > 0) {
-            wordPopup.innerHTML = `<b>${results[0].word} (${results[0].pos})</b>: ${results[0].definition}`;
-            wordPopup.style.left = e.pageX + 10 + "px";
-            wordPopup.style.top = e.pageY + 10 + "px";
-            wordPopup.style.display = "block";
-          }
-        });
-
-        wordList.appendChild(wordDiv);
-      }
+      if (!wordsByPage[pageNum]) wordsByPage[pageNum] = [];
+      wordsByPage[pageNum].push(...words);
     });
   }
 });
 
-// Hide popup if click outside
+// Track last rendered page to avoid unnecessary re-render
+let lastRenderedPage = 0;
+
+pdfContainer.addEventListener("scroll", () => {
+  const scrollTop = pdfContainer.scrollTop;
+  const canvases = pdfContainer.querySelectorAll("canvas");
+
+  canvases.forEach((canvas, index) => {
+    const canvasTop = canvas.offsetTop;
+    const canvasBottom = canvasTop + canvas.offsetHeight;
+
+    if (scrollTop >= canvasTop && scrollTop < canvasBottom) {
+      const currentPage = index + 1;
+      if (currentPage !== lastRenderedPage) {
+        lastRenderedPage = currentPage;
+        renderWordsForPage(currentPage);
+      }
+    }
+  });
+});
+
+function renderWordsForPage(pageNum) {
+  wordList.innerHTML = ""; // clear previous words
+  const words = wordsByPage[pageNum] || [];
+  const uniqueWords = [...new Set(words)]; // remove duplicates
+
+  // Sort alphabetically
+  uniqueWords.sort();
+
+  // Set CSS for columns
+  wordList.style.columnCount = 5; // 3 columns
+  wordList.style.columnGap = "0"; // spacing between columns
+
+  uniqueWords.forEach((word) => {
+    const wordDiv = document.createElement("div");
+    wordDiv.textContent = word;
+    wordDiv.style.cursor = "pointer";
+    wordDiv.style.padding = "0 ";
+    wordDiv.style.breakInside = "avoid"; // prevent breaking a word across columns
+
+    wordDiv.addEventListener("click", async (e) => {
+      const results = await window.electronAPI.lookup(word);
+      if (results && results.length > 0) {
+        const meanings = results
+          .map((r, i) => `${i + 1}. ${r.definition}`)
+          .join("<br>");
+        wordPopup.innerHTML = `<b>${results[0].word} (${results[0].pos})</b>:<br>${meanings}`;
+        wordPopup.style.left = e.pageX + -100 + "px";
+        wordPopup.style.top = e.pageY + 10 + "px";
+        wordPopup.style.display = "block";
+      } else {
+        wordPopup.innerHTML = `No definition found for "${word}"`;
+        wordPopup.style.left = e.pageX + 10 + "px";
+        wordPopup.style.top = e.pageY + 10 + "px";
+        wordPopup.style.display = "block";
+      }
+    });
+
+    wordList.appendChild(wordDiv);
+  });
+}
+
+// Hide popup if clicking outside
 document.addEventListener("click", (e) => {
   if (!wordList.contains(e.target)) {
     wordPopup.style.display = "none";

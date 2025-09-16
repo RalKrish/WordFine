@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const WordNet = require('node-wordnet');
+const wordnet = new WordNet();
+const lemmatizer = require('wink-lemmatizer');
 
 let mainWindow;
 
@@ -31,6 +34,21 @@ ipcMain.handle("dialog-open-file", async () => {
 });
 
 // Example: Handle word lookup (dummy, replace with DB call)
-ipcMain.handle("lookup-word", async (event, word) => {
-  return [{ word, pos: "noun", definition: "Sample meaning of " + word }];
+ipcMain.handle('lookup-word', async (event, word) => {
+
+// Convert to lowercase and lemmatize
+  const baseWord = lemmatizer.noun(word) || lemmatizer.verb(word) || lemmatizer.adjective(word) || word;
+
+
+  // Look up the word using WordNet
+  return new Promise((resolve, reject) => {
+    wordnet.lookup(baseWord, (err, definitions) => {
+      if (err) resolve([]);
+      else resolve(definitions.map(d => ({
+        word: d.lemma,
+        pos: d.pos,
+        definition: d.def
+      })));
+    });
+  });
 });

@@ -12,12 +12,15 @@
   },
   "dependencies": {
     "next": "15.5.3",
+    "node-wordnet": "^0.1.12",
     "nodemon": "^3.1.10",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^3.11.174",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "wink-lemmatizer": "^3.0.4",
+    "wndb-with-exceptions": "^3.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
